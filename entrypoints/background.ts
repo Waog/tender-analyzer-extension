@@ -10,4 +10,22 @@ export default defineBackground(() => {
       (browser as any).sidePanel.open({ tabId: tab.id });
     }
   });
+
+  browser.downloads.onChanged.addListener(async (delta) => {
+    if (delta.state?.current === "complete") {
+      const [item] = await browser.downloads.search({ id: delta.id });
+      if (item) {
+        browser.runtime
+          .sendMessage({
+            type: "download-complete",
+            download: {
+              filename: item.filename,
+              fileSize: item.fileSize,
+              mime: item.mime,
+            },
+          })
+          .catch(() => {});
+      }
+    }
+  });
 });
