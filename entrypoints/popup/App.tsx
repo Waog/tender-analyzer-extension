@@ -1,7 +1,7 @@
-import { useState } from 'react';
-import reactLogo from '@/assets/react.svg';
-import wxtLogo from '/wxt.svg';
-import './App.css';
+import reactLogo from "@/assets/react.svg";
+import { useState } from "react";
+import "./App.css";
+import wxtLogo from "/wxt.svg";
 
 function App() {
   const [count, setCount] = useState(0);
@@ -18,7 +18,12 @@ function App() {
       </div>
       <h1>WXT + React</h1>
       <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
+        <button
+          onClick={() => {
+            setCount((count) => count + 1);
+            console.log("popup: count!", count + 1);
+          }}
+        >
           count is {count}
         </button>
         <p>
