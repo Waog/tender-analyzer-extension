@@ -5,6 +5,10 @@ import { extractText, getDocumentProxy } from "unpdf";
 
 type DownloadItem = globalThis.Browser.downloads.DownloadItem;
 
+const instructionPromptSnippet: string = `Summarize this tender briefly!`;
+
+const state: Record<string, { file: File; promptSnippet: string }> = {};
+
 export default defineBackground(() => {
   browser.contextMenus.create({
     id: "tender-analyzer",
@@ -25,6 +29,13 @@ export default defineBackground(() => {
         const file = await downloadItemToFile(item);
         await processFile(file);
       }
+    }
+  });
+
+  browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    if (message.type === "get-prompt") {
+      sendResponse(buildPrompt());
+      return true;
     }
   });
 });
@@ -60,8 +71,24 @@ async function processPdfFile(file: File): Promise<void> {
   const { totalPages, text } = await extractText(pdf, { mergePages: true });
   await updateFileItem({
     file,
-    state: `✅ extracted ${totalPages} pages and ${text.length} characters`,
+    state: `⌛ extracted ${totalPages} pages and ${text.length} characters, creating prompt snippet...`,
   });
+  const promptSnippet = `
+
+    ---
+    ${file.name}:
+
+    ${text}
+    ---
+
+    `;
+  state[toId(file)] = { file, promptSnippet };
+  await updateFileItem({ file, state: `✅ done (${totalPages} pages)` });
+}
+
+function buildPrompt(): string {
+  const snippets = Object.values(state).map((s) => s.promptSnippet);
+  return [instructionPromptSnippet, ...snippets].join("\n");
 }
 
 function isZipFile(file: File): boolean {

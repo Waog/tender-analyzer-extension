@@ -36,9 +36,15 @@ function App() {
 
   console.log({ items });
 
+  async function handleCopyToClipboard() {
+    const prompt = await browser.runtime.sendMessage({ type: "get-prompt" });
+    await navigator.clipboard.writeText(prompt);
+  }
+
   return (
     <div className="app">
       <h1>Tender Analyzer</h1>
+      <button onClick={handleCopyToClipboard}>to clipboard</button>
       <ul className="file-list">
         {items.map((item) => (
           <li key={item.id} className="file-item">
