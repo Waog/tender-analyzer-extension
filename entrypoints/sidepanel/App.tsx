@@ -1,34 +1,44 @@
 import { useEffect, useState } from "react";
 import "./App.css";
 
-interface DownloadedFile {
+type ItemCrudMessage = AddItemMessage;
+type AddItemMessage = { type: "add-item"; payload: ListItem };
+
+interface ListItem {
+  id: string;
   filename: string;
   fileSize: number;
   mime: string;
+  state: "downloaded";
 }
 
 function App() {
-  const [downloads, setDownloads] = useState<DownloadedFile[]>([]);
+  const [items, setItems] = useState<ListItem[]>([]);
 
   useEffect(() => {
-    const listener = (message: { type: string; download: DownloadedFile }) => {
-      if (message.type === "download-complete") {
-        setDownloads((prev) => [...prev, message.download]);
+    const listener = (message: ItemCrudMessage) => {
+      if (message.type === "add-item") {
+        setItems((prev) => [...prev, message.payload]);
       }
     };
     browser.runtime.onMessage.addListener(listener);
     return () => browser.runtime.onMessage.removeListener(listener);
   }, []);
 
+  console.log({ items });
+
   return (
     <div className="app">
       <h1>Tender Analyzer</h1>
       <ul className="file-list">
-        {downloads.map((d, i) => (
-          <li key={i} className="file-item">
-            <span className="file-name">{getBasename(d.filename)}</span>
-            <span className="file-type">{getFileType(d.filename, d.mime)}</span>
-            <span className="file-size">{formatFileSize(d.fileSize)}</span>
+        {items.map((item) => (
+          <li key={item.id} className="file-item">
+            <span className="file-name">{getBasename(item.filename)}</span>
+            <div className="file-meta">
+              <span>{item.state}</span>
+              <span>{getFileType(item.filename, item.mime)}</span>
+              <span>{formatFileSize(item.fileSize)}</span>
+            </div>
           </li>
         ))}
       </ul>
