@@ -2,10 +2,9 @@ import { fileTypeFromBuffer } from "file-type";
 import JSZip from "jszip";
 import hash from "stable-hash";
 import { extractText, getDocumentProxy } from "unpdf";
+import { instructionPromptSnippet } from "./instructionPromptSnippet";
 
 type DownloadItem = globalThis.Browser.downloads.DownloadItem;
-
-const instructionPromptSnippet: string = `Summarize this tender briefly!`;
 
 const state: Record<string, { file: File; promptSnippet: string }> = {};
 
