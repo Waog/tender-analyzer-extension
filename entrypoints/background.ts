@@ -1,3 +1,4 @@
+import { fileTypeFromBuffer } from "file-type";
 import JSZip from "jszip";
 import hash from "stable-hash";
 
@@ -55,12 +56,14 @@ function isZipFile(file: File): boolean {
 
 async function downloadItemToFile(item: DownloadItem): Promise<File> {
   const data = await fetchFileData(item.url);
-  return new File([data], item.filename, { type: item.mime ?? "" });
+  const fileType = await fileTypeFromBuffer(data);
+  return new File([data], item.filename, { type: fileType?.mime });
 }
 
 async function jsZipEntryToFile(entry: JSZip.JSZipObject): Promise<File> {
   const data = await entry.async("arraybuffer");
-  return new File([data], entry.name);
+  const fileType = await fileTypeFromBuffer(data);
+  return new File([data], entry.name, { type: fileType?.mime });
 }
 
 async function fetchFileData(url: string): Promise<ArrayBuffer> {

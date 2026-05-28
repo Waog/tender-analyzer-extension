@@ -45,7 +45,8 @@ function App() {
             <span className="file-name">{getBasename(item.filename)}</span>
             <div className="file-meta">
               <span>{item.state}</span>
-              <span>{getFileType(item.filename, item.mime)}</span>
+              <span>{getFileExtension(item.filename)}</span>
+              <span>{item.mime}</span>
               <span>{formatFileSize(item.fileSize)}</span>
             </div>
           </li>
@@ -59,9 +60,9 @@ function getBasename(filepath: string): string {
   return filepath.replace(/\\/g, "/").split("/").pop() ?? filepath;
 }
 
-function getFileType(filename: string, mime: string): string {
+function getFileExtension(filename: string): string {
   const ext = filename.split(".").pop();
-  return ext ? `.${ext}` : mime;
+  return ext ? `.${ext}` : "-";
 }
 
 function formatFileSize(bytes: number): string {
