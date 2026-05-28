@@ -18,6 +18,8 @@ When you are in chat mode: Prefer using the VSCode tools you have access to over
 
 # General Coding Guidelines
 
+When using libraries and frameworks, always do online research how to use these libraries instead of hallucinating. Especially do this for WXT!
+
 Prefer minimal changes over large refactors, unless the code is very bad or you are asked to do a refactor.
 
 Prefer using libraries and reusing existing code over writing new code. Suggest new libraries instead of reinventing the wheel. Brief and non-duplicated code is always more maintainable and preferred.
