@@ -1,6 +1,7 @@
 import { fileTypeFromBuffer } from "file-type";
 import JSZip from "jszip";
 import hash from "stable-hash";
+import { extractText, getDocumentProxy } from "unpdf";
 
 type DownloadItem = globalThis.Browser.downloads.DownloadItem;
 
@@ -22,7 +23,7 @@ export default defineBackground(() => {
       const [item] = await browser.downloads.search({ id: delta.id });
       if (item) {
         const file = await downloadItemToFile(item);
-        processFile(file);
+        await processFile(file);
       }
     }
   });
@@ -31,27 +32,44 @@ export default defineBackground(() => {
 async function processFile(file: File): Promise<void> {
   if (isZipFile(file)) {
     await processZipFile(file);
+  } else if (isPdfFile(file)) {
+    await processPdfFile(file);
   } else {
-    await addFileItem(file, "to be implemented...");
+    await addFileItem({ file, state: "❌ to be implemented..." });
   }
 }
 
-async function processZipFile(zipFile: File): Promise<void> {
-  await addFileItem(zipFile, "unzipping");
+async function processZipFile(file: File): Promise<void> {
+  await addFileItem({ file, state: "⌛ unzipping" });
 
-  const zip = await JSZip.loadAsync(await zipFile.arrayBuffer());
+  const zip = await JSZip.loadAsync(await file.arrayBuffer());
   const jsZipEntries = Object.values(zip.files).filter((f) => !f.dir);
 
   for (const entry of jsZipEntries) {
     const entryFile = await jsZipEntryToFile(entry);
-    processFile(entryFile);
+    await processFile(entryFile);
   }
 
-  await updateFileItem(zipFile, "done");
+  await updateFileItem({ file, state: "✅ done" });
+}
+
+async function processPdfFile(file: File): Promise<void> {
+  await addFileItem({ file, state: "⌛ reading PDF" });
+  const data = await file.arrayBuffer();
+  const pdf = await getDocumentProxy(new Uint8Array(data));
+  const { totalPages, text } = await extractText(pdf, { mergePages: true });
+  await updateFileItem({
+    file,
+    state: `✅ extracted ${totalPages} pages and ${text.length} characters`,
+  });
 }
 
 function isZipFile(file: File): boolean {
-  return file.type === "application/zip" || file.name.endsWith(".zip");
+  return file.type === "application/zip";
+}
+
+function isPdfFile(file: File): boolean {
+  return file.type === "application/pdf";
 }
 
 async function downloadItemToFile(item: DownloadItem): Promise<File> {
@@ -71,7 +89,13 @@ async function fetchFileData(url: string): Promise<ArrayBuffer> {
   return response.arrayBuffer();
 }
 
-async function addFileItem(file: File, state?: string): Promise<void> {
+async function addFileItem({
+  file,
+  state,
+}: {
+  file: File;
+  state?: string;
+}): Promise<void> {
   return await browser.runtime.sendMessage({
     type: "add-item",
     payload: {
@@ -84,7 +108,13 @@ async function addFileItem(file: File, state?: string): Promise<void> {
   });
 }
 
-async function updateFileItem(file: File, state: string): Promise<void> {
+async function updateFileItem({
+  file,
+  state,
+}: {
+  file: File;
+  state: string;
+}): Promise<void> {
   return await browser.runtime.sendMessage({
     type: "update-item",
     payload: {
