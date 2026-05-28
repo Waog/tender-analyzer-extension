@@ -20,93 +20,77 @@ export default defineBackground(() => {
     if (delta.state?.current === "complete") {
       const [item] = await browser.downloads.search({ id: delta.id });
       if (item) {
-        await addDownloadItem({ item, state: "source found" });
-        processDownloadItem(item);
+        const file = await downloadItemToFile(item);
+        processFile(file);
       }
     }
   });
 });
 
-async function processDownloadItem(item: DownloadItem): Promise<void> {
-  if (isZipFile(item)) {
-    await processDownloadItemZipFile(item);
+async function processFile(file: File): Promise<void> {
+  if (isZipFile(file)) {
+    await processZipFile(file);
+  } else {
+    await addFileItem(file, "to be implemented...");
   }
 }
 
-async function processDownloadItemZipFile(item: DownloadItem): Promise<void> {
-  await updateDownloadItem({ item, state: "fetching data" });
+async function processZipFile(zipFile: File): Promise<void> {
+  await addFileItem(zipFile, "unzipping");
 
-  const zipData = await fetchFileData(item.url);
-
-  await updateDownloadItem({ item, state: "unzipping" });
-
-  const zip = await JSZip.loadAsync(zipData);
+  const zip = await JSZip.loadAsync(await zipFile.arrayBuffer());
   const jsZipEntries = Object.values(zip.files).filter((f) => !f.dir);
 
   for (const entry of jsZipEntries) {
-    await addJsZipEntryItem(entry);
+    const entryFile = await jsZipEntryToFile(entry);
+    processFile(entryFile);
   }
 
-  await updateDownloadItem({ item, state: "done" });
+  await updateFileItem(zipFile, "done");
 }
 
-function isZipFile(item: DownloadItem): boolean {
-  return item.mime === "application/zip" || item.filename.endsWith(".zip");
+function isZipFile(file: File): boolean {
+  return file.type === "application/zip" || file.name.endsWith(".zip");
+}
+
+async function downloadItemToFile(item: DownloadItem): Promise<File> {
+  const data = await fetchFileData(item.url);
+  return new File([data], item.filename, { type: item.mime ?? "" });
+}
+
+async function jsZipEntryToFile(entry: JSZip.JSZipObject): Promise<File> {
+  const data = await entry.async("arraybuffer");
+  return new File([data], entry.name);
 }
 
 async function fetchFileData(url: string): Promise<ArrayBuffer> {
-  console.log(`Fetching file data from URL: ${url}`);
   const response = await fetch(url);
   return response.arrayBuffer();
 }
 
-async function addDownloadItem({
-  item,
-  state,
-}: {
-  item: DownloadItem;
-  state?: string;
-}): Promise<void> {
-  return await browser.runtime
-    .sendMessage({
-      type: "add-item",
-      payload: {
-        id: hash([item.filename, item.fileSize]),
-        filename: item.filename,
-        fileSize: item.fileSize,
-        mime: item.mime,
-        state,
-      },
-    })
-    .catch(() => {});
-}
-
-async function updateDownloadItem({
-  item,
-  state,
-}: {
-  item: DownloadItem;
-  state?: string;
-}): Promise<void> {
+async function addFileItem(file: File, state?: string): Promise<void> {
   return await browser.runtime.sendMessage({
-    type: "update-item",
+    type: "add-item",
     payload: {
-      id: hash([item.filename, item.fileSize]),
+      id: toId(file),
+      filename: file.name,
+      fileSize: file.size,
+      mime: file.type,
       state,
     },
   });
 }
 
-async function addJsZipEntryItem(entry: JSZip.JSZipObject) {
-  const content = await entry.async("arraybuffer");
+async function updateFileItem(file: File, state: string): Promise<void> {
   return await browser.runtime.sendMessage({
-    type: "add-item",
+    type: "update-item",
     payload: {
-      id: hash([entry.name, content.byteLength]),
-      filename: entry.name,
-      fileSize: content.byteLength,
-      mime: "",
-      state: "to be implemented...",
+      id: toId(file),
+      state,
     },
   });
+}
+
+function toId(file: File): string {
+  return hash([file.name, file.size]);
 }
