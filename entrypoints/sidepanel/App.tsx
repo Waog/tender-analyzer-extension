@@ -3,13 +3,14 @@ import "./App.css";
 
 type ItemCrudMessage = AddItemMessage;
 type AddItemMessage = { type: "add-item"; payload: ListItem };
+type UpdateItemMessage = { type: "update-item"; payload: ListItem };
 
 interface ListItem {
   id: string;
   filename: string;
   fileSize: number;
   mime: string;
-  state: "downloaded";
+  state: string;
 }
 
 function App() {
@@ -19,6 +20,14 @@ function App() {
     const listener = (message: ItemCrudMessage) => {
       if (message.type === "add-item") {
         setItems((prev) => [...prev, message.payload]);
+      } else if (message.type === "update-item") {
+        setItems((prev) =>
+          prev.map((item) =>
+            item.id === message.payload.id
+              ? { ...item, ...message.payload }
+              : item,
+          ),
+        );
       }
     };
     browser.runtime.onMessage.addListener(listener);
