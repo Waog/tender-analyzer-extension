@@ -4,6 +4,7 @@ import * as mammoth from "mammoth";
 import readExcelFile from "read-excel-file/web-worker";
 import hash from "stable-hash";
 import { extractText, getDocumentProxy } from "unpdf";
+import { retrieveAndDeleteFile } from "~/utils/fileStorage";
 import { instructionPromptSnippet } from "./instructionPromptSnippet";
 
 type DownloadItem = globalThis.Browser.downloads.DownloadItem;
@@ -38,6 +39,12 @@ export default defineBackground(() => {
       sendResponse(buildPrompt());
       return true;
     }
+    if (message.type === "process-file") {
+      retrieveAndDeleteFile(message.payload.id)
+        .then((file) => processFile(file))
+        .then(() => sendResponse());
+      return true;
+    }
   });
 });
 
@@ -51,7 +58,10 @@ async function processFile(file: File): Promise<void> {
   } else if (isXlsxFile(file)) {
     await processXlsxFile(file);
   } else {
-    await addFileItem({ file, state: "❌ to be implemented..." });
+    await addFileItem({
+      file,
+      state: "❌ unknown file type,to be implemented...",
+    });
   }
 }
 
@@ -63,7 +73,7 @@ async function processZipFile(file: File): Promise<void> {
 
   for (const entry of jsZipEntries) {
     const entryFile = await jsZipEntryToFile(entry);
-    await processFile(entryFile);
+    processFile(entryFile);
   }
 
   await updateFileItem({ file, state: "✅ done" });
@@ -139,7 +149,10 @@ function buildPrompt(): string {
 }
 
 function isZipFile(file: File): boolean {
-  return file.type === "application/zip";
+  return (
+    file.type === "application/zip" ||
+    file.type === "application/x-zip-compressed"
+  );
 }
 
 function isPdfFile(file: File): boolean {

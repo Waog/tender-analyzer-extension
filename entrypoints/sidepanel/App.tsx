@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { storeFile } from "~/utils/fileStorage";
 import "./App.css";
 
 type ItemCrudMessage = AddItemMessage;
@@ -15,6 +16,8 @@ interface ListItem {
 
 function App() {
   const [items, setItems] = useState<ListItem[]>([]);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const listener = (message: ItemCrudMessage) => {
@@ -34,17 +37,65 @@ function App() {
     return () => browser.runtime.onMessage.removeListener(listener);
   }, []);
 
-  console.log({ items });
-
   async function handleCopyToClipboard() {
     const prompt = await browser.runtime.sendMessage({ type: "get-prompt" });
     await navigator.clipboard.writeText(prompt);
+  }
+
+  async function handleFiles(files: FileList | File[]) {
+    for (const file of Array.from(files)) {
+      const id = await storeFile(file);
+      await browser.runtime.sendMessage({
+        type: "process-file",
+        payload: { id },
+      });
+    }
+  }
+
+  function handleDragOver(e: React.DragEvent) {
+    e.preventDefault();
+    setIsDragOver(true);
+  }
+
+  function handleDragLeave() {
+    setIsDragOver(false);
+  }
+
+  async function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setIsDragOver(false);
+    if (e.dataTransfer.files.length > 0) {
+      await handleFiles(e.dataTransfer.files);
+    }
+  }
+
+  async function handleFileInputChange(e: React.ChangeEvent<HTMLInputElement>) {
+    if (e.target.files?.length) {
+      await handleFiles(e.target.files);
+      e.target.value = "";
+    }
   }
 
   return (
     <div className="app">
       <h1>Tender Analyzer</h1>
       <button onClick={handleCopyToClipboard}>to clipboard</button>
+      <div
+        className={`drop-zone${isDragOver ? " drag-over" : ""}`}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        onClick={() => fileInputRef.current?.click()}
+      >
+        <span>Drop files here or click to select</span>
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          style={{ display: "none" }}
+          onChange={handleFileInputChange}
+        />
+      </div>
       <ul className="file-list">
         {items.map((item) => (
           <li key={item.id} className="file-item">
