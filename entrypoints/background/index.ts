@@ -39,6 +39,11 @@ export default defineBackground(() => {
       sendResponse(buildPrompt());
       return true;
     }
+    if (message.type === "reset") {
+      for (const key of Object.keys(state)) delete state[key];
+      sendResponse();
+      return true;
+    }
     if (message.type === "process-file") {
       retrieveAndDeleteFile(message.payload.id)
         .then((file) => processFile(file))

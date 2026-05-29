@@ -38,6 +38,11 @@ function App() {
     return () => browser.runtime.onMessage.removeListener(listener);
   }, []);
 
+  async function handleReset() {
+    await browser.runtime.sendMessage({ type: "reset" });
+    setItems([]);
+  }
+
   async function handleCopyToClipboard() {
     const prompt = await browser.runtime.sendMessage({ type: "get-prompt" });
     await navigator.clipboard.writeText(prompt);
@@ -93,6 +98,7 @@ function App() {
       <h1>Tender Analyzer</h1>
       <button onClick={handleCopyToClipboard}>to clipboard</button>
       <button onClick={handleDownloadPromptFile}>download prompt file</button>
+      <button onClick={handleReset}>reset</button>
       <div
         className={`drop-zone${isDragOver ? " drag-over" : ""}`}
         onDragOver={handleDragOver}
