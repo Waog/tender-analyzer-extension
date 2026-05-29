@@ -11,7 +11,8 @@ interface ListItem {
   filename: string;
   fileSize: number;
   mime: string;
-  state: string;
+  notes: string;
+  state: "⌛" | "✅" | "❌";
 }
 
 function App() {
@@ -96,21 +97,49 @@ function App() {
           onChange={handleFileInputChange}
         />
       </div>
+      {items.length > 0 && <ProgressSummary items={items} />}
       <ul className="file-list">
-        {items.map((item) => (
+        {sortByState(items).map((item) => (
           <li key={item.id} className="file-item">
-            <span className="file-name">{getBasename(item.filename)}</span>
-            <div className="file-meta">
-              <span>{item.state}</span>
-              <span>{getFileExtension(item.filename)}</span>
-              <span>{item.mime}</span>
-              <span>{formatFileSize(item.fileSize)}</span>
+            <span className="file-state">{item.state}</span>
+            <div className="file-content">
+              <span className="file-name">{getBasename(item.filename)}</span>
+              <div className="file-meta">
+                <span>{getFileExtension(item.filename)}</span>
+                <span>{item.mime}</span>
+                <span>{formatFileSize(item.fileSize)}</span>
+                <span>{item.notes}</span>
+              </div>
             </div>
           </li>
         ))}
       </ul>
     </div>
   );
+}
+
+function ProgressSummary({ items }: { items: ListItem[] }) {
+  const pending = items.filter((i) => i.state === "⌛").length;
+  const done = items.filter((i) => i.state === "✅").length;
+  const failed = items.filter((i) => i.state === "❌").length;
+  return (
+    <div className="progress-summary">
+      <span>⌛ {pending}</span>
+      <span>✅ {done}</span>
+      <span>❌ {failed}</span>
+      <span className="progress-total">/ {items.length} total</span>
+    </div>
+  );
+}
+
+const STATE_ORDER: Record<ListItem["state"], number> = {
+  "⌛": 0,
+  "❌": 1,
+  "✅": 2,
+};
+
+function sortByState(items: ListItem[]): ListItem[] {
+  return [...items].sort((a, b) => STATE_ORDER[a.state] - STATE_ORDER[b.state]);
 }
 
 function getBasename(filepath: string): string {

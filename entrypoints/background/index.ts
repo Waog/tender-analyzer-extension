@@ -60,13 +60,14 @@ async function processFile(file: File): Promise<void> {
   } else {
     await addFileItem({
       file,
-      state: "❌ unknown file type,to be implemented...",
+      state: "❌",
+      notes: "unknown file type, to be implemented",
     });
   }
 }
 
 async function processZipFile(file: File): Promise<void> {
-  await addFileItem({ file, state: "⌛ unzipping" });
+  await addFileItem({ file, state: "⌛", notes: "unzipping" });
 
   const zip = await JSZip.loadAsync(await file.arrayBuffer());
   const jsZipEntries = Object.values(zip.files).filter((f) => !f.dir);
@@ -76,17 +77,18 @@ async function processZipFile(file: File): Promise<void> {
     processFile(entryFile);
   }
 
-  await updateFileItem({ file, state: "✅ done" });
+  await updateFileItem({ file, state: "✅", notes: "done" });
 }
 
 async function processPdfFile(file: File): Promise<void> {
-  await addFileItem({ file, state: "⌛ reading PDF" });
+  await addFileItem({ file, state: "⌛", notes: "reading PDF" });
   const data = await file.arrayBuffer();
   const pdf = await getDocumentProxy(new Uint8Array(data));
   const { totalPages, text } = await extractText(pdf, { mergePages: true });
   await updateFileItem({
     file,
-    state: `⌛ extracted ${totalPages} pages and ${text.length} characters, creating prompt snippet...`,
+    state: `⌛`,
+    notes: `extracted ${totalPages} pages and ${text.length} characters, creating prompt snippet`,
   });
   const promptSnippet = `
 
@@ -98,17 +100,22 @@ async function processPdfFile(file: File): Promise<void> {
 
     `;
   state[toId(file)] = { file, promptSnippet };
-  await updateFileItem({ file, state: `✅ done (${totalPages} pages)` });
+  await updateFileItem({
+    file,
+    state: `✅`,
+    notes: `done (${totalPages} pages)`,
+  });
 }
 
 export async function processDocxFile(file: File): Promise<void> {
-  await addFileItem({ file, state: "⌛ reading DOCX" });
+  await addFileItem({ file, state: "⌛", notes: "reading DOCX" });
   const arrayBuffer = await file.arrayBuffer();
   const mammothResult = await mammoth.convertToHtml({ arrayBuffer });
   const html = mammothResult.value;
   await updateFileItem({
     file,
-    state: `⌛ extracted html (${html.length} characters), creating prompt snippet...`,
+    state: `⌛`,
+    notes: `extracted html (${html.length} characters), creating prompt snippet`,
   });
   const promptSnippet = `
 
@@ -120,15 +127,20 @@ export async function processDocxFile(file: File): Promise<void> {
 
     `;
   state[toId(file)] = { file, promptSnippet };
-  await updateFileItem({ file, state: `✅ done (${html.length} characters)` });
+  await updateFileItem({
+    file,
+    state: `✅`,
+    notes: `done (${html.length} characters)`,
+  });
 }
 
 export async function processXlsxFile(file: File): Promise<void> {
-  await addFileItem({ file, state: "⌛ reading XLSX" });
+  await addFileItem({ file, state: "⌛", notes: "reading XLSX" });
   const sheets = await readExcelFile(file);
   await updateFileItem({
     file,
-    state: `⌛ extracted XLSX (${sheets.length} sheets), creating prompt snippet...`,
+    state: `⌛`,
+    notes: `extracted XLSX (${sheets.length} sheets), creating prompt snippet`,
   });
   const promptSnippet = `
 
@@ -140,7 +152,11 @@ export async function processXlsxFile(file: File): Promise<void> {
 
     `;
   state[toId(file)] = { file, promptSnippet };
-  await updateFileItem({ file, state: `✅ done (${sheets.length} sheets)` });
+  await updateFileItem({
+    file,
+    state: `✅`,
+    notes: `done (${sheets.length} sheets)`,
+  });
 }
 
 function buildPrompt(): string {
@@ -193,9 +209,11 @@ async function fetchFileData(url: string): Promise<ArrayBuffer> {
 async function addFileItem({
   file,
   state,
+  notes,
 }: {
   file: File;
-  state?: string;
+  state?: `⌛` | `✅` | `❌`;
+  notes?: string;
 }): Promise<void> {
   return await browser.runtime.sendMessage({
     type: "add-item",
@@ -205,6 +223,7 @@ async function addFileItem({
       fileSize: file.size,
       mime: file.type,
       state,
+      notes,
     },
   });
 }
@@ -212,15 +231,18 @@ async function addFileItem({
 async function updateFileItem({
   file,
   state,
+  notes,
 }: {
   file: File;
-  state: string;
+  state?: `⌛` | `✅` | `❌`;
+  notes?: string;
 }): Promise<void> {
   return await browser.runtime.sendMessage({
     type: "update-item",
     payload: {
       id: toId(file),
       state,
+      notes,
     },
   });
 }
