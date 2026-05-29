@@ -1,5 +1,6 @@
 import { fileTypeFromBuffer } from "file-type";
 import JSZip from "jszip";
+import * as mammoth from "mammoth";
 import hash from "stable-hash";
 import { extractText, getDocumentProxy } from "unpdf";
 import { instructionPromptSnippet } from "./instructionPromptSnippet";
@@ -44,6 +45,8 @@ async function processFile(file: File): Promise<void> {
     await processZipFile(file);
   } else if (isPdfFile(file)) {
     await processPdfFile(file);
+  } else if (isDocxFile(file)) {
+    await processDocxFile(file);
   } else {
     await addFileItem({ file, state: "❌ to be implemented..." });
   }
@@ -85,6 +88,28 @@ async function processPdfFile(file: File): Promise<void> {
   await updateFileItem({ file, state: `✅ done (${totalPages} pages)` });
 }
 
+export async function processDocxFile(file: File): Promise<void> {
+  await addFileItem({ file, state: "⌛ reading DOCX" });
+  const arrayBuffer = await file.arrayBuffer();
+  const mammothResult = await mammoth.convertToHtml({ arrayBuffer });
+  const html = mammothResult.value;
+  await updateFileItem({
+    file,
+    state: `⌛ extracted html (${html.length} characters), creating prompt snippet...`,
+  });
+  const promptSnippet = `
+
+    ---
+    ${file.name}:
+
+    ${html}
+    ---
+
+    `;
+  state[toId(file)] = { file, promptSnippet };
+  await updateFileItem({ file, state: `✅ done (${html.length} characters)` });
+}
+
 function buildPrompt(): string {
   const snippets = Object.values(state).map((s) => s.promptSnippet);
   return [instructionPromptSnippet, ...snippets].join("\n");
@@ -96,6 +121,13 @@ function isZipFile(file: File): boolean {
 
 function isPdfFile(file: File): boolean {
   return file.type === "application/pdf";
+}
+
+function isDocxFile(file: File): boolean {
+  return (
+    file.type ===
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+  );
 }
 
 async function downloadItemToFile(item: DownloadItem): Promise<File> {
