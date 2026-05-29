@@ -20,6 +20,7 @@
     "mammoth": "^1.12.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
+    "read-excel-file": "^9.0.10",
     "stable-hash": "^0.0.6",
     "unpdf": "^1.6.2"
   },

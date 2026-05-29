@@ -1,6 +1,7 @@
 import { fileTypeFromBuffer } from "file-type";
 import JSZip from "jszip";
 import * as mammoth from "mammoth";
+import readExcelFile from "read-excel-file/web-worker";
 import hash from "stable-hash";
 import { extractText, getDocumentProxy } from "unpdf";
 import { instructionPromptSnippet } from "./instructionPromptSnippet";
@@ -47,6 +48,8 @@ async function processFile(file: File): Promise<void> {
     await processPdfFile(file);
   } else if (isDocxFile(file)) {
     await processDocxFile(file);
+  } else if (isXlsxFile(file)) {
+    await processXlsxFile(file);
   } else {
     await addFileItem({ file, state: "❌ to be implemented..." });
   }
@@ -110,6 +113,26 @@ export async function processDocxFile(file: File): Promise<void> {
   await updateFileItem({ file, state: `✅ done (${html.length} characters)` });
 }
 
+export async function processXlsxFile(file: File): Promise<void> {
+  await addFileItem({ file, state: "⌛ reading XLSX" });
+  const sheets = await readExcelFile(file);
+  await updateFileItem({
+    file,
+    state: `⌛ extracted XLSX (${sheets.length} sheets), creating prompt snippet...`,
+  });
+  const promptSnippet = `
+
+    ---
+    ${file.name}:
+
+    ${JSON.stringify(sheets, null, 2)}
+    ---
+
+    `;
+  state[toId(file)] = { file, promptSnippet };
+  await updateFileItem({ file, state: `✅ done (${sheets.length} sheets)` });
+}
+
 function buildPrompt(): string {
   const snippets = Object.values(state).map((s) => s.promptSnippet);
   return [instructionPromptSnippet, ...snippets].join("\n");
@@ -127,6 +150,13 @@ function isDocxFile(file: File): boolean {
   return (
     file.type ===
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+  );
+}
+
+function isXlsxFile(file: File): boolean {
+  return (
+    file.type ===
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
   );
 }
 
