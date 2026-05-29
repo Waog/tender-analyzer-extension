@@ -68,29 +68,37 @@ async function processFile(file: File): Promise<void> {
 
 async function processZipFile(file: File): Promise<void> {
   await addFileItem({ file, state: "⌛", notes: "unzipping" });
+  try {
+    const zip = await JSZip.loadAsync(await file.arrayBuffer());
+    const jsZipEntries = Object.values(zip.files).filter((f) => !f.dir);
 
-  const zip = await JSZip.loadAsync(await file.arrayBuffer());
-  const jsZipEntries = Object.values(zip.files).filter((f) => !f.dir);
+    for (const entry of jsZipEntries) {
+      const entryFile = await jsZipEntryToFile(entry);
+      processFile(entryFile);
+    }
 
-  for (const entry of jsZipEntries) {
-    const entryFile = await jsZipEntryToFile(entry);
-    processFile(entryFile);
+    await updateFileItem({ file, state: "✅", notes: "done" });
+  } catch (error) {
+    await updateFileItem({
+      file,
+      state: `❌`,
+      notes: `failed to unzip: ${error instanceof Error ? error.message : String(error)}`,
+    });
   }
-
-  await updateFileItem({ file, state: "✅", notes: "done" });
 }
 
 async function processPdfFile(file: File): Promise<void> {
   await addFileItem({ file, state: "⌛", notes: "reading PDF" });
-  const data = await file.arrayBuffer();
-  const pdf = await getDocumentProxy(new Uint8Array(data));
-  const { totalPages, text } = await extractText(pdf, { mergePages: true });
-  await updateFileItem({
-    file,
-    state: `⌛`,
-    notes: `extracted ${totalPages} pages and ${text.length} characters, creating prompt snippet`,
-  });
-  const promptSnippet = `
+  try {
+    const data = await file.arrayBuffer();
+    const pdf = await getDocumentProxy(new Uint8Array(data));
+    const { totalPages, text } = await extractText(pdf, { mergePages: true });
+    await updateFileItem({
+      file,
+      state: `⌛`,
+      notes: `extracted ${totalPages} pages and ${text.length} characters, creating prompt snippet`,
+    });
+    const promptSnippet = `
 
     ---
     ${file.name}:
@@ -99,25 +107,33 @@ async function processPdfFile(file: File): Promise<void> {
     ---
 
     `;
-  state[toId(file)] = { file, promptSnippet };
-  await updateFileItem({
-    file,
-    state: `✅`,
-    notes: `done (${totalPages} pages)`,
-  });
+    state[toId(file)] = { file, promptSnippet };
+    await updateFileItem({
+      file,
+      state: `✅`,
+      notes: `done (${totalPages} pages)`,
+    });
+  } catch (error) {
+    await updateFileItem({
+      file,
+      state: `❌`,
+      notes: `failed to read PDF: ${error instanceof Error ? error.message : String(error)}`,
+    });
+  }
 }
 
 export async function processDocxFile(file: File): Promise<void> {
   await addFileItem({ file, state: "⌛", notes: "reading DOCX" });
-  const arrayBuffer = await file.arrayBuffer();
-  const mammothResult = await mammoth.convertToHtml({ arrayBuffer });
-  const html = mammothResult.value;
-  await updateFileItem({
-    file,
-    state: `⌛`,
-    notes: `extracted html (${html.length} characters), creating prompt snippet`,
-  });
-  const promptSnippet = `
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const mammothResult = await mammoth.convertToHtml({ arrayBuffer });
+    const html = mammothResult.value;
+    await updateFileItem({
+      file,
+      state: `⌛`,
+      notes: `extracted html (${html.length} characters), creating prompt snippet`,
+    });
+    const promptSnippet = `
 
     ---
     ${file.name}:
@@ -126,37 +142,54 @@ export async function processDocxFile(file: File): Promise<void> {
     ---
 
     `;
-  state[toId(file)] = { file, promptSnippet };
-  await updateFileItem({
-    file,
-    state: `✅`,
-    notes: `done (${html.length} characters)`,
-  });
+    state[toId(file)] = { file, promptSnippet };
+    await updateFileItem({
+      file,
+      state: `✅`,
+      notes: mammothResult.messages.length
+        ? `done (${html.length} characters, ${JSON.stringify(mammothResult.messages)})`
+        : `done (${html.length} characters)`,
+    });
+  } catch (error) {
+    await updateFileItem({
+      file,
+      state: `❌`,
+      notes: `failed to read DOCX: ${error instanceof Error ? error.message : String(error)}`,
+    });
+  }
 }
 
 export async function processXlsxFile(file: File): Promise<void> {
   await addFileItem({ file, state: "⌛", notes: "reading XLSX" });
-  const sheets = await readExcelFile(file);
-  await updateFileItem({
-    file,
-    state: `⌛`,
-    notes: `extracted XLSX (${sheets.length} sheets), creating prompt snippet`,
-  });
-  const promptSnippet = `
+  try {
+    const sheets = await readExcelFile(file);
+    await updateFileItem({
+      file,
+      state: `⌛`,
+      notes: `extracted XLSX (${sheets.length} sheets), creating prompt snippet`,
+    });
+    const promptSnippet = `
 
-    ---
-    ${file.name}:
-
+  ---
+  ${file.name}:
+  
     ${JSON.stringify(sheets, null, 2)}
     ---
-
+    
     `;
-  state[toId(file)] = { file, promptSnippet };
-  await updateFileItem({
-    file,
-    state: `✅`,
-    notes: `done (${sheets.length} sheets)`,
-  });
+    state[toId(file)] = { file, promptSnippet };
+    await updateFileItem({
+      file,
+      state: `✅`,
+      notes: `done (${sheets.length} sheets)`,
+    });
+  } catch (error) {
+    await updateFileItem({
+      file,
+      state: `❌`,
+      notes: `failed to read XLSX: ${error instanceof Error ? error.message : String(error)}`,
+    });
+  }
 }
 
 function buildPrompt(): string {
