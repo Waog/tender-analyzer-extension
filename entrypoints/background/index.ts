@@ -1,6 +1,7 @@
 import { fileTypeFromBuffer } from "file-type";
 import JSZip from "jszip";
 import * as mammoth from "mammoth";
+import mime from "mime";
 import readExcelFile from "read-excel-file/web-worker";
 import hash from "stable-hash";
 import { extractText, getDocumentProxy } from "unpdf";
@@ -62,6 +63,8 @@ async function processFile(file: File): Promise<void> {
     await processDocxFile(file);
   } else if (isXlsxFile(file)) {
     await processXlsxFile(file);
+  } else if (isTxtFile(file)) {
+    await processTxtFile(file);
   } else {
     await addFileItem({
       file,
@@ -105,11 +108,11 @@ async function processPdfFile(file: File): Promise<void> {
     });
     const promptSnippet = `
 
-    ---
+    =====
     ${file.name}:
 
     ${text}
-    ---
+    =====
 
     `;
     state[toId(file)] = { file, promptSnippet };
@@ -140,11 +143,11 @@ export async function processDocxFile(file: File): Promise<void> {
     });
     const promptSnippet = `
 
-    ---
+    =====
     ${file.name}:
 
     ${html}
-    ---
+    =====
 
     `;
     state[toId(file)] = { file, promptSnippet };
@@ -164,6 +167,34 @@ export async function processDocxFile(file: File): Promise<void> {
   }
 }
 
+export async function processTxtFile(file: File): Promise<void> {
+  await addFileItem({ file, state: "⌛", notes: "reading TXT" });
+  try {
+    const text = await file.text();
+    const promptSnippet = `
+
+    =====
+    ${file.name}:
+
+    ${text}
+    =====
+
+    `;
+    state[toId(file)] = { file, promptSnippet };
+    await updateFileItem({
+      file,
+      state: `✅`,
+      notes: `done (${text.length} characters)`,
+    });
+  } catch (error) {
+    await updateFileItem({
+      file,
+      state: `❌`,
+      notes: `failed to read TXT: ${error instanceof Error ? error.message : String(error)}`,
+    });
+  }
+}
+
 export async function processXlsxFile(file: File): Promise<void> {
   await addFileItem({ file, state: "⌛", notes: "reading XLSX" });
   try {
@@ -175,11 +206,11 @@ export async function processXlsxFile(file: File): Promise<void> {
     });
     const promptSnippet = `
 
-  ---
-  ${file.name}:
+    =====
+    ${file.name}:
   
     ${JSON.stringify(sheets, null, 2)}
-    ---
+    =====
     
     `;
     state[toId(file)] = { file, promptSnippet };
@@ -227,16 +258,40 @@ function isXlsxFile(file: File): boolean {
   );
 }
 
+function isTxtFile(file: File): boolean {
+  return file.type === "text/plain";
+}
+
 async function downloadItemToFile(item: DownloadItem): Promise<File> {
-  const data = await fetchFileData(item.url);
-  const fileType = await fileTypeFromBuffer(data);
-  return new File([data], item.filename, { type: fileType?.mime });
+  const arrayBuffer = await fetchFileData(item.url);
+  const fileType = await toFileType({
+    arrayBuffer,
+    filename: item.filename,
+  });
+  return new File([arrayBuffer], item.filename, { type: fileType });
 }
 
 async function jsZipEntryToFile(entry: JSZip.JSZipObject): Promise<File> {
-  const data = await entry.async("arraybuffer");
-  const fileType = await fileTypeFromBuffer(data);
-  return new File([data], entry.name, { type: fileType?.mime });
+  const arrayBuffer = await entry.async("arraybuffer");
+  const fileType = await toFileType({
+    arrayBuffer,
+    filename: entry.name,
+  });
+  return new File([arrayBuffer], entry.name, { type: fileType });
+}
+
+async function toFileType({
+  arrayBuffer,
+  filename,
+}: {
+  arrayBuffer: ArrayBuffer;
+  filename: string;
+}) {
+  const fileExtension = filename.split(".").pop() ?? "";
+  const fileType = await fileTypeFromBuffer(arrayBuffer);
+  return (
+    fileType?.mime ?? mime.getType(fileExtension) ?? "application/octet-stream"
+  );
 }
 
 async function fetchFileData(url: string): Promise<ArrayBuffer> {
