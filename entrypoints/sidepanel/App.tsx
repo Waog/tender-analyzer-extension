@@ -43,6 +43,17 @@ function App() {
     await navigator.clipboard.writeText(prompt);
   }
 
+  async function handleDownloadPromptFile() {
+    const prompt = await browser.runtime.sendMessage({ type: "get-prompt" });
+    const blob = new Blob([prompt], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "prompt.txt";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   async function handleFiles(files: FileList | File[]) {
     for (const file of Array.from(files)) {
       const id = await storeFile(file);
@@ -81,6 +92,7 @@ function App() {
     <div className="app">
       <h1>Tender Analyzer</h1>
       <button onClick={handleCopyToClipboard}>to clipboard</button>
+      <button onClick={handleDownloadPromptFile}>download prompt file</button>
       <div
         className={`drop-zone${isDragOver ? " drag-over" : ""}`}
         onDragOver={handleDragOver}
